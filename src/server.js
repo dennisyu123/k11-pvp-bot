@@ -51,7 +51,15 @@ client.on('message',  async (msg) => {
 
         let userImage = {} 
         userImage[userId] = attechment[0].attachment
-        battleImage[team] = userImage
+
+        let savedImage = battleImage[team]
+
+        if(savedImage === undefined) {
+            battleImage[team] = userImage
+        }
+        else {
+            battleImage[team][userId] = attechment[0].attachment
+        }
 
         fs.writeFile(BATTLE_IMAGE_LOCATION, JSON.stringify(battleImage), 'utf8', ()=>{})
     }
