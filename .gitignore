@@ -1,4 +1,5 @@
 /src/token.js
 /src/data/*
+/node_modules
 package-lock.json
 .gitattributes
