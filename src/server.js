@@ -242,7 +242,11 @@ function convertToEmbedMessage(userId, team, body){
 
     if (images != null) {
         for (const [key, value] of Object.entries(images)) {
-            defaultImage = value
+
+            if(defaultImage === undefined) {
+                defaultImage = value
+            }
+
             if(userId == key) {
                 defaultImage = value
             }
