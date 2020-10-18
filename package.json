@@ -1,0 +1,16 @@
+{
+  "name": "k11-pvp-bot",
+  "version": "1.0.0",
+  "description": "K11 PVP Bot for Discord",
+  "main": "server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "author": "Kengo",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^12.3.1",
+    "fs": "0.0.1-security",
+    "superagent": "^6.1.0"
+  }
+}
