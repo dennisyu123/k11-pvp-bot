@@ -18,8 +18,10 @@ client.login(botToken.token)
 client.on('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`)
 
-    let nc = await firestore.database.get(`config`, `nickname`)
-    nickNameMap = nc.data()
+    let nc = await firestore.database.get(`config`, `nick-name`)
+    if(nc.data() != undefined) {
+        nickNameMap = JSON.parse(nc.data().zh)
+    }
 })
 
 client.on('message',  async (msg) => {
@@ -29,6 +31,14 @@ client.on('message',  async (msg) => {
 
     if(msg.author.bot || msg.channel.type == `dm`) {
         return
+    }
+    if(msg.content.startsWith(`!mem`)) {
+        const used = process.memoryUsage()
+        let mem = ``
+        for (let key in used) {
+            mem = mem + `${key} ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB \n`
+        }
+        msg.channel.send(mem)
     }
     if(msg.content.startsWith(`!指令`)){
         msg.reply('\n!陣 {別名} {別名} {別名} {別名} {別名}\n!別名 {系統原名} {新名}')
@@ -114,8 +124,7 @@ client.on('message',  async (msg) => {
         nickNameMap[names[1].trim()] = parseInt(cid)
         msg.reply(`已新增別名 ${names[1]}`)
 
-        let data = JSON.parse(`{"${names[1].trim()}" : ${parseInt(cid)}}`)
-        firestore.database.store(`config`, `nickname`, data).then(()=>{
+        firestore.database.store(`config`, `nick-name`, {zh: JSON.stringify(nickNameMap)}).then(()=>{
             console.log(`已新增別名 ${names[1]}`)
         })
     }
