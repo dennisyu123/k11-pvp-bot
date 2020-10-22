@@ -1,5 +1,7 @@
 /src/token.js
-/src/data/*
+/data/*
 /node_modules
 package-lock.json
 .gitattributes
+/src/config/service-account.json
+/src/vision.js

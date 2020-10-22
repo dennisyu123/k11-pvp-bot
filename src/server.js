@@ -3,29 +3,23 @@ let nickNameMap = require('./config/nick-name').nickNameMap
 
 const botToken = require('./token')
 const datasource = require('./datasource')
-const fs = require('fs')
-
+const crypto = require("crypto")
 const Discord = require('discord.js')
-const client = new Discord.Client();
+const client = new Discord.Client()
+const firestore = require('./firestore')
 
 let queryCache = {}
 let battleImage = {}
 
 const cacheTime = 3600 * 1000 // Data will be cached 1 hour
 
-//nickName file location
-const NICKNAME_FILE_LOCATION = `./src/data/nickName.json`
-
-//queryCache file location
-const QUERY_CACHE_LOCATION = `./src/data/queryCache`
-
-//battleImage
-const BATTLE_IMAGE_LOCATION = `./src/data/battleImage`
-
 client.login(botToken.token)
 
-client.on('ready', () => {
+client.on('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`)
+
+    let nc = await firestore.database.get(`config`, `nickname`)
+    nickNameMap = nc.data()
 })
 
 client.on('message',  async (msg) => {
@@ -47,45 +41,82 @@ client.on('message',  async (msg) => {
         let queryMessage = msg.content
         let team = queryMessage.trim().replace(`!圖 `,``).trim()
 
+        let teamQuery = team.trim().split(' ')
+        if(teamQuery.length != 5) {
+            msg.reply('隊伍最少要有 5 個角色')
+            return
+        }
+
         let userId = msg.author.id
 
         let userImage = {} 
+        if(attechment[0] === undefined) {
+            msg.reply('請上傳相關戰報')
+            return
+        }
         userImage[userId] = attechment[0].attachment
 
-        let savedImage = battleImage[team]
+        let found = true
+
+        let jpTeamArray = []
+
+        teamQuery.forEach(t => {
+            if(characterMap[nickNameMap[t]] === undefined && found) {
+                msg.reply(`找不到 ${t} 這個角色`)
+                found = false
+            }
+            else {
+                jpTeamArray.push(characterMap[nickNameMap[t]][0])
+            }
+        })
+        if(found == false) {
+            return
+        }
+        let hash = crypto.createHash(`sha1`).update(JSON.stringify(jpTeamArray)).digest(`hex`)
+
+        if(battleImage[hash] == undefined) {
+            let bicol = await firestore.database.get(`battleImage`, hash)
+            battleImage[hash] = bicol.data()
+        }
+        
+        let savedImage = battleImage[hash]
 
         if(savedImage === undefined) {
-            battleImage[team] = userImage
+            battleImage[hash] = userImage
         }
         else {
-            battleImage[team][userId] = attechment[0].attachment
+            battleImage[hash][userId] = attechment[0].attachment
         }
 
-        fs.writeFile(BATTLE_IMAGE_LOCATION, JSON.stringify(battleImage), 'utf8', ()=>{})
+        firestore.database.store(`battleResult`, hash, userImage).then(()=>{
+            msg.react(`👍`)
+            console.log(`${new Date()} battleResult ${hash} is stored to firestore`)
+        })
     }
 
     //new nick mame: !別名:{系統原名},{新名} e.g. !別名 佩可 飯糰
     if(msg.content.startsWith('!別名')) {
         let queryMessage = msg.content
         let team = queryMessage.trim().replace(`!別名`,``)
-        let teamQuery = team.trim().split(' ')
-        if(teamQuery.length != 2) {
+        let names = team.trim().split(' ')
+        if(names.length != 2) {
             msg.reply('新增名稱最少要有 2 參數')
             return
         }
         //search zh name get id
-        let cid = getArrayKeyByZH(characterMap, teamQuery[0])
+        let cid = getArrayKeyByZH(characterMap, names[0])
         if(cid === undefined) {
-            msg.reply(`找不到 ${teamQuery[0]} 這個角色`)
+            msg.reply(`找不到 ${names[0]} 這個角色`)
             return
         }
 
         // store 
-        nickNameMap[teamQuery[1].trim()] = parseInt(cid)
-        msg.reply(`已新增別名 ${teamQuery[1]}`)
+        nickNameMap[names[1].trim()] = parseInt(cid)
+        msg.reply(`已新增別名 ${names[1]}`)
 
-        fs.writeFile(NICKNAME_FILE_LOCATION, JSON.stringify(nickNameMap), 'utf8', ()=>{
-            console.log(`已新增別名 ${teamQuery[1]}`)
+        let data = JSON.parse(`{"${names[1].trim()}" : ${parseInt(cid)}}`)
+        firestore.database.store(`config`, `nickname`, data).then(()=>{
+            console.log(`已新增別名 ${names[1]}`)
         })
     }
 
@@ -102,10 +133,15 @@ client.on('message',  async (msg) => {
         }
         let found = true
 
+        let jpTeamArray = []
+
         teamQuery.forEach(t => {
             if(characterMap[nickNameMap[t]] === undefined && found) {
                 msg.reply(`找不到 ${t} 這個角色`)
                 found = false
+            }
+            else {
+                jpTeamArray.push(characterMap[nickNameMap[t]][0])
             }
         })
         if(found == false) {
@@ -114,68 +150,57 @@ client.on('message',  async (msg) => {
 
         let shallGetDataFromSource = true
         let isCache = false
+        let hash = crypto.createHash(`sha1`).update(JSON.stringify(jpTeamArray)).digest(`hex`)
 
-        if(queryCache[team] != undefined) {
+        //not found in local memory, try to get it from db
+        if(queryCache[hash] == undefined) {
+            let atkcol = await firestore.database.get(`atkId`, hash)
+            queryCache[hash] = atkcol.data()
+        }
+
+        //found in db / memory
+        if(queryCache[hash] != undefined) {
             isCache = true
             let currentTime = new Date().getTime()
-            let dataTime = queryCache[team].timestamp + cacheTime
+            let dataTime = queryCache[hash].timestamp + cacheTime
             if(dataTime > currentTime) {
                 shallGetDataFromSource = false
             }
         }
 
         if(shallGetDataFromSource) {
-            const response = await datasource.fetch(teamQuery, characterMap, nickNameMap, 0)
+            const response = await datasource.fetch(jpTeamArray, 0)
             
             if(response === undefined) {
                 if(isCache == false) {
-                    msg.channel.send(getBattleImageMessage(userId, team))
+                    let embed = await getBattleImageMessage(userId, hash)
+                    msg.channel.send(embed)
                     return
                 }
                 // return cache result
             }
             else {
                 //update cache
-                queryCache[team] = {
+                queryCache[hash] = {
                     timestamp : new Date().getTime(),
-                    result: response.body
+                    result: convertToChineseResult(response.body)
                 }
-                fs.writeFile(QUERY_CACHE_LOCATION, JSON.stringify(queryCache), 'utf8', ()=>{})
+
+                firestore.database.store(`atkId`, hash, {
+                    timestamp : new Date().getTime(),
+                    result: convertToChineseResult(response.body)
+                })
+                .then(()=>{
+                    console.log(`${new Date()} atkId ${hash} is stored to firestore`)
+                })
             }
         }
-        msg.channel.send(convertToEmbedMessage(userId, team, queryCache[team]))
-    }
-})
-//Restore cache 
-fs.readFile(QUERY_CACHE_LOCATION, 'utf8', (err, data) => {
-    if (err){
-        console.log(err)
-    } 
-    else {
-        queryCache = JSON.parse(data)
+        let embed = await convertToEmbedMessage(userId, hash)
+        msg.channel.send(embed)
     }
 })
 
-//Read nickName file
-fs.readFile(NICKNAME_FILE_LOCATION, 'utf8', (err, data) => {
-    if (err){
-        console.log(err)
-    } 
-    else {
-        nickNameMap = JSON.parse(data)
-    }
-})
-
-//Read battle Image
-fs.readFile(BATTLE_IMAGE_LOCATION, 'utf8', (err, data) => {
-    if (err){
-        console.log(err)
-    } 
-    else {
-        battleImage = JSON.parse(data)
-    }
-})
-function getBattleImageMessage(userId, team){
+async function getBattleImageMessage(userId, hash){
     const embed = new Discord.MessageEmbed()
     .setColor('#0099ff')
     .setTitle(`隊伍參考`)
@@ -183,29 +208,35 @@ function getBattleImageMessage(userId, team){
     .setThumbnail('https://na.cx/i/tbpW6vP.png')
 
     //Attech image if someone uploaded before
-    let images = battleImage[team]
+    if(battleImage[hash] == undefined) {
+        let bicol = await firestore.database.get(`battleResult`, hash)
+        battleImage[hash] = bicol.data()
+    }
+
+    let images = battleImage[hash]
     let defaultImage = undefined
 
     if (images != null) {
         for (const [key, value] of Object.entries(images)) {
-            defaultImage = value
+            if(defaultImage === undefined) {
+                defaultImage = value
+            }
             if(userId == key) {
                 defaultImage = value
             }
         }
         if(defaultImage != undefined) {
             embed.setImage(defaultImage)
+            embed.setDescription(`K11 的記錄`)
         }
     }
     else {
-        embed.setDescription(`暫無記錄`)
+        embed.setDescription(`伺服器忙碌 , 請重新查詢`)
     }
     return embed
 }
-function convertToEmbedMessage(userId, team, body){
-    let result = body.result
+function convertToChineseResult(result){
     let chineseResult = []
-
     let idx = 0
     result.forEach(entry => {
         if(idx > 4) {
@@ -228,24 +259,42 @@ function convertToEmbedMessage(userId, team, body){
             id: entry.id,
             good: entry.good,
             bad: entry.bad,
-            team: teamMember
+            team: teamMember,
+            updated: entry.updated
         }
         chineseResult.push(entryResult)
     })
+    return chineseResult
+}
+async function convertToEmbedMessage(userId, hash){
+    let chineseResult = queryCache[hash].result
 
     const embed = new Discord.MessageEmbed()
     .setColor('#0099ff')
     .setAuthor('進攻推薦隊伍參考', 'https://na.cx/i/tbpW6vP.png', 'https://nomae.net/arenadb/')
     .setThumbnail('https://na.cx/i/tbpW6vP.png')
 
-    chineseResult.forEach(r => {
-        embed.addFields(
-            { name: `${r.team.toString()}`, value: `:thumbsup: ${r.good} :thumbsdown: ${r.bad}`, inline: false }
-        )
-    })
+    if(chineseResult.length == 0) {
+        embed.setDescription(`伺服器暫無記錄`)
+    }
+    else {
+        chineseResult.forEach(r => {
+            let date = new Date(Date.parse(r.updated))
+            let month = date.getMonth() + 1
+            let day = date.getDate()
+            embed.addFields(
+                { name: `${r.team.toString()}`, value: `:thumbsup: ${r.good} :thumbsdown: ${r.bad} :calendar_spiral: ${day}/${month}`, inline: false }
+            )
+        })
+    }
 
     //Attech image if someone uploaded before
-    let images = battleImage[team]
+    if(battleImage[hash] == undefined) {
+        let bicol = await firestore.database.get(`battleResult`, hash)
+        battleImage[hash] = bicol.data()
+    }
+    
+    let images = battleImage[hash]
     let defaultImage = undefined
 
     if (images != null) {

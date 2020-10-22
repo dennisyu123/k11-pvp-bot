@@ -4,13 +4,14 @@
   "description": "K11 PVP Bot for Discord",
   "main": "server.js",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "start:fc": "node src/firestore.js"
   },
   "author": "Kengo",
   "license": "ISC",
   "dependencies": {
     "discord.js": "^12.3.1",
-    "fs": "0.0.1-security",
+    "firebase-admin": "^9.2.0",
     "superagent": "^6.1.0"
   }
 }
