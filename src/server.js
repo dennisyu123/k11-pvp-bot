@@ -11,7 +11,7 @@ const firestore = require('./firestore')
 let queryCache = {}
 let battleImage = {}
 
-const cacheTime = 3600 * 1000 // Data will be cached 1 hour
+const cacheTime = 43200 * 1000 // Data will be cached 12 hours
 
 client.login(botToken.token)
 
@@ -22,6 +22,23 @@ client.on('ready', async () => {
     if(nc.data() != undefined) {
         nickNameMap = JSON.parse(nc.data().zh)
     }
+
+    // update system metrics and remove old cache every 1 hour
+    setInterval(async () => { 
+        const used = process.memoryUsage()
+        let status = `Memory usage\n\n`
+        for (let key in used) {
+            status = status + `${key} ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB \n`
+        }
+        removeOldCache()
+        const cachedItem = Object.keys(queryCache).length + Object.keys(battleImage).length
+        status = status + `cached items ${cachedItem}\n\nLast update: ${new Date()}`
+
+        let channel = client.channels.cache.get("695986571492589634")
+        let msg = await channel.messages.fetch('769224175708667916')
+
+        msg.edit(status)
+    }, 3600 * 1000);
 })
 
 client.on('message',  async (msg) => {
@@ -32,16 +49,10 @@ client.on('message',  async (msg) => {
     if(msg.author.bot || msg.channel.type == `dm`) {
         return
     }
-    if(msg.content.startsWith(`!mem`)) {
-        const used = process.memoryUsage()
-        let mem = ``
-        for (let key in used) {
-            mem = mem + `${key} ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB \n`
-        }
-        msg.channel.send(mem)
-    }
+
     if(msg.content.startsWith(`!指令`)){
         msg.reply('\n!陣 {別名} {別名} {別名} {別名} {別名}\n!別名 {系統原名} {新名}')
+        return
     }
 
     // store image url
@@ -102,6 +113,7 @@ client.on('message',  async (msg) => {
             msg.react(`👍`)
             console.log(`${new Date()} battleResult ${hash} is stored to firestore`)
         })
+        return
     }
 
     //new nick mame: !別名:{系統原名},{新名} e.g. !別名 佩可 飯糰
@@ -127,6 +139,7 @@ client.on('message',  async (msg) => {
         firestore.database.store(`config`, `nick-name`, {zh: JSON.stringify(nickNameMap)}).then(()=>{
             console.log(`已新增別名 ${names[1]}`)
         })
+        return
     }
 
     if (msg.content.startsWith('!陣 ')) {
@@ -182,7 +195,7 @@ client.on('message',  async (msg) => {
             
             if(response === undefined) {
                 if(isCache == false) {
-                    let embed = await getBattleImageMessage(userId, hash)
+                    let embed = await convertToEmbedMessage(userId, hash, team.trim(), true)
                     msg.channel.send(embed)
                     return
                 }
@@ -190,60 +203,27 @@ client.on('message',  async (msg) => {
             }
             else {
                 //update cache
+                let data = convertToChineseResult(response.body)
                 queryCache[hash] = {
                     timestamp : new Date().getTime(),
-                    result: convertToChineseResult(response.body)
+                    result: data
                 }
 
                 firestore.database.store(`atkId`, hash, {
                     timestamp : new Date().getTime(),
-                    result: convertToChineseResult(response.body)
+                    result: data
                 })
                 .then(()=>{
                     console.log(`${new Date()} atkId ${hash} is stored to firestore`)
                 })
             }
         }
-        let embed = await convertToEmbedMessage(userId, hash)
+        let embed = await convertToEmbedMessage(userId, hash, team.trim(), false)
         msg.channel.send(embed)
+        return
     }
 })
 
-async function getBattleImageMessage(userId, hash){
-    const embed = new Discord.MessageEmbed()
-    .setColor('#0099ff')
-    .setTitle(`隊伍參考`)
-    .setAuthor('進攻推薦', 'https://na.cx/i/tbpW6vP.png', 'https://nomae.net/arenadb/')
-    .setThumbnail('https://na.cx/i/tbpW6vP.png')
-
-    //Attech image if someone uploaded before
-    if(battleImage[hash] == undefined) {
-        let bicol = await firestore.database.get(`battleResult`, hash)
-        battleImage[hash] = bicol.data()
-    }
-
-    let images = battleImage[hash]
-    let defaultImage = undefined
-
-    if (images != null) {
-        for (const [key, value] of Object.entries(images)) {
-            if(defaultImage === undefined) {
-                defaultImage = value
-            }
-            if(userId == key) {
-                defaultImage = value
-            }
-        }
-        if(defaultImage != undefined) {
-            embed.setImage(defaultImage)
-            embed.setDescription(`K11 的記錄`)
-        }
-    }
-    else {
-        embed.setDescription(`伺服器忙碌 , 請重新查詢`)
-    }
-    return embed
-}
 function convertToChineseResult(result){
     let chineseResult = []
     let idx = 0
@@ -275,16 +255,22 @@ function convertToChineseResult(result){
     })
     return chineseResult
 }
-async function convertToEmbedMessage(userId, hash){
-    let chineseResult = queryCache[hash].result
+async function convertToEmbedMessage(userId, hash, title, isBusy){
+    let cached = queryCache[hash]
+    let chineseResult = cached == undefined ? [] : queryCache[hash].result
 
     const embed = new Discord.MessageEmbed()
     .setColor('#0099ff')
-    .setAuthor('進攻推薦隊伍參考', 'https://na.cx/i/tbpW6vP.png', 'https://nomae.net/arenadb/')
+    .setAuthor(title, 'https://na.cx/i/tbpW6vP.png', 'https://nomae.net/arenadb/')
     .setThumbnail('https://na.cx/i/tbpW6vP.png')
 
     if(chineseResult.length == 0) {
-        embed.setDescription(`伺服器暫無記錄`)
+        if(isBusy){
+            embed.setDescription(`伺服器忙碌 , 請重新查詢`)
+        }
+        else {
+            embed.setDescription(`伺服器暫無記錄`)
+        }
     }
     else {
         chineseResult.forEach(r => {
@@ -328,4 +314,14 @@ function getArrayKeyByZH(object, value) {
 }
 function getArrayKeyByValue(object, value) {
     return Object.keys(object).find(key => object[key][0] === value)
+}
+function removeOldCache(){
+    for (const [key, value] of Object.entries(queryCache)) {
+        let currentTime = new Date().getTime()
+        let dataTime = value.timestamp + cacheTime
+        if(dataTime < currentTime) {
+            delete queryCache[key]
+            delete battleImage[key]
+        }
+    }
 }
