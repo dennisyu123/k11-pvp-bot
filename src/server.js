@@ -10,7 +10,7 @@ const firestore = require('./firestore')
 
 let queryCache = {}
 let battleImage = {}
-
+let intervalTask = {}
 const cacheTime = 43200 * 1000 // Data will be cached 12 hours
 
 client.login(botToken.token)
@@ -24,21 +24,10 @@ client.on('ready', async () => {
     }
 
     // update system metrics and remove old cache every 1 hour
-    setInterval(async () => { 
-        const used = process.memoryUsage()
-        let status = `Memory usage\n\n`
-        for (let key in used) {
-            status = status + `${key} ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB \n`
-        }
-        removeOldCache()
-        const cachedItem = Object.keys(queryCache).length + Object.keys(battleImage).length
-        status = status + `cached items ${cachedItem}\n\nLast update: ${new Date()}`
-
-        let channel = client.channels.cache.get("695986571492589634")
-        let msg = await channel.messages.fetch('769224175708667916')
-
-        msg.edit(status)
-    }, 3600 * 1000);
+    intervalTask = setInterval(async () => { 
+        printSystemMessage()
+    }, 3600 * 1000)
+    printSystemMessage()
 })
 
 client.on('message',  async (msg) => {
@@ -53,6 +42,14 @@ client.on('message',  async (msg) => {
     if(msg.content.startsWith(`!指令`)){
         msg.reply('\n!陣 {別名} {別名} {別名} {別名} {別名}\n!別名 {系統原名} {新名}')
         return
+    }
+
+    if(msg.content.startsWith(`!system`)){
+        clearInterval(intervalTask)
+        intervalTask = setInterval(async () => { 
+            printSystemMessage()
+        }, 3600 * 1000)
+        printSystemMessage()
     }
 
     // store image url
@@ -324,4 +321,19 @@ function removeOldCache(){
             delete battleImage[key]
         }
     }
+}
+async function printSystemMessage() {
+    const used = process.memoryUsage()
+    let status = `Memory usage\n\n`
+    for (let key in used) {
+        status = status + `${key} ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB \n`
+    }
+    removeOldCache()
+    const cachedItem = Object.keys(queryCache).length + Object.keys(battleImage).length
+    status = status + `cached items ${cachedItem}\n\nLast update: ${new Date()}`
+
+    let channel = client.channels.cache.get("695986571492589634")
+    let msg = await channel.messages.fetch('769224175708667916')
+
+    msg.edit(status)
 }
