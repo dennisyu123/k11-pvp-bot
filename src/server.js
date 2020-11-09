@@ -315,8 +315,15 @@ function getArrayKeyByValue(object, value) {
 function removeOldCache(){
     for (const [key, value] of Object.entries(queryCache)) {
         let currentTime = new Date().getTime()
-        let dataTime = value.timestamp + cacheTime
-        if(dataTime < currentTime) {
+
+        if(value.hasOwnProperty(`timestamp`)) {
+            let dataTime = value.timestamp + cacheTime
+            if(dataTime < currentTime) {
+                delete queryCache[key]
+                delete battleImage[key]
+            }
+        }
+        else {
             delete queryCache[key]
             delete battleImage[key]
         }
