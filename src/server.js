@@ -316,7 +316,7 @@ function removeOldCache(){
     for (const [key, value] of Object.entries(queryCache)) {
         let currentTime = new Date().getTime()
 
-        if(value.hasOwnProperty(`timestamp`)) {
+        if(value.timestamp !== undefined)) {
             let dataTime = value.timestamp + cacheTime
             if(dataTime < currentTime) {
                 delete queryCache[key]
