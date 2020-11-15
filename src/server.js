@@ -221,7 +221,7 @@ client.on('message',  async (msg) => {
     }
 })
 
-function convertToChineseResult(result){
+const convertToChineseResult = (result) => {
     let chineseResult = []
     let idx = 0
     result.forEach(entry => {
@@ -252,7 +252,7 @@ function convertToChineseResult(result){
     })
     return chineseResult
 }
-async function convertToEmbedMessage(userId, hash, title, isBusy){
+const convertToEmbedMessage = async (userId, hash, title, isBusy) => {
     let cached = queryCache[hash]
     let chineseResult = cached == undefined ? [] : queryCache[hash].result
 
@@ -306,30 +306,32 @@ async function convertToEmbedMessage(userId, hash, title, isBusy){
     }
     return embed
 }
-function getArrayKeyByZH(object, value) {
+const getArrayKeyByZH = (object, value) => {
     return Object.keys(object).find(key => object[key][1] === value)
 }
-function getArrayKeyByValue(object, value) {
+const getArrayKeyByValue = (object, value) => {
     return Object.keys(object).find(key => object[key][0] === value)
 }
-function removeOldCache(){
+const removeOldCache = () => {
+    let removeList = []
     for (const [key, value] of Object.entries(queryCache)) {
-        let currentTime = new Date().getTime()
-
-        if(value.timestamp !== undefined) {
+        try {
+            let currentTime = new Date().getTime()
             let dataTime = value.timestamp + cacheTime
             if(dataTime < currentTime) {
-                delete queryCache[key]
-                delete battleImage[key]
+                removeList.push(key)
             }
         }
-        else {
-            delete queryCache[key]
-            delete battleImage[key]
+        catch (err) {
+            console.log(`${key} does not have timestamp`)
         }
     }
+    removeList.forEach(key => {
+        delete queryCache[key]
+        delete battleImage[key]
+    })
 }
-async function printSystemMessage() {
+const printSystemMessage = async () => {
     const used = process.memoryUsage()
     let status = `Memory usage\n\n`
     for (let key in used) {
