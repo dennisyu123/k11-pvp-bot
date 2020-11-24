@@ -125,8 +125,13 @@ client.on('message',  async (msg) => {
         //search zh name get id
         let cid = getArrayKeyByZH(characterMap, names[0])
         if(cid === undefined) {
-            msg.reply(`找不到 ${names[0]} 這個角色`)
-            return
+            if(nickNameMap[names[0].trim()] === undefined) {
+                msg.reply(`找不到 ${names[0]} 這個角色`)
+                return
+            }
+            else {
+                cid = nickNameMap[names[0].trim()]
+            }
         }
 
         // store 
