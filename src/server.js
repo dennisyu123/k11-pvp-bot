@@ -6,7 +6,7 @@ const crypto = require("crypto")
 const Discord = require('discord.js')
 const client = new Discord.Client()
 const firestore = require('./firestore')
-const http = require('http')
+const http = require('https')
 const express = require('express')
 const app = express()
 
