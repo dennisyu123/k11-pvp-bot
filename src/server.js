@@ -6,7 +6,7 @@ const crypto = require("crypto")
 const Discord = require('discord.js')
 const client = new Discord.Client()
 const firestore = require('./firestore')
-
+const http = require('http')
 const express = require('express')
 const app = express()
 
@@ -39,6 +39,13 @@ client.on('ready', async () => {
     // update system metrics and remove old cache every 20 minutes
     intervalTask = setInterval(async () => { 
         printSystemMessage()
+
+        http.get('https://k11-pvp-bot.herokuapp.com/', (res) => {
+            res.setEncoding('utf8')
+            res.on('data', function (body) {
+                console.log(body)
+            })
+        })
     }, 1200 * 1000)
     printSystemMessage()
 })
