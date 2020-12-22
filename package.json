@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node src/server.js",
-    "start:fc": "node src/firestore.js"
+    "start:fc": "node src/firestore.js",
+    "test": "node src/token.js"
   },
   "author": "Kengo",
   "license": "ISC",

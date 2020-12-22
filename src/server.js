@@ -1,7 +1,6 @@
 const characterMap = require('./config/character').characterMap
 let nickNameMap = require('./config/nick-name').nickNameMap
 
-const botToken = require('./token')
 const datasource = require('./datasource')
 const crypto = require("crypto")
 const Discord = require('discord.js')
@@ -13,7 +12,7 @@ let battleImage = {}
 let intervalTask = {}
 const cacheTime = 43200 * 1000 // Data will be cached 12 hours
 
-client.login(botToken.token)
+client.login(process.env.DC_TOKEN)
 
 client.on('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`)
