@@ -6,11 +6,23 @@ const crypto = require("crypto")
 const Discord = require('discord.js')
 const client = new Discord.Client()
 const firestore = require('./firestore')
+const http = require('http')
 
 let queryCache = {}
 let battleImage = {}
 let intervalTask = {}
 const cacheTime = 43200 * 1000 // Data will be cached 12 hours
+
+const PORT = process.env.PORT || 5000;
+
+const server = http.createServer((req, res) => {
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/json")
+  const used = process.memoryUsage()
+  res.end(used)
+});
+
+server.listen(PORT)
 
 client.login(process.env.DC_TOKEN)
 
