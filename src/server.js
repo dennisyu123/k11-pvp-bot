@@ -36,10 +36,10 @@ client.on('ready', async () => {
         nickNameMap = JSON.parse(nc.data().zh)
     }
 
-    // update system metrics and remove old cache every 1 hour
+    // update system metrics and remove old cache every 20 minutes
     intervalTask = setInterval(async () => { 
         printSystemMessage()
-    }, 3600 * 1000)
+    }, 1200 * 1000)
     printSystemMessage()
 })
 
