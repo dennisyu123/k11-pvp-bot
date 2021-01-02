@@ -199,7 +199,6 @@ client.on('message',  async (msg) => {
         //not found in local memory, try to get it from db
         if(queryCache[hash] == undefined) {
             let atkcol = await firestore.database.get(`atkId`, hash)
-            console.log(JSON.stringify(atkcol.data()))
             queryCache[hash] = atkcol.data()
         }
 
@@ -350,6 +349,7 @@ const removeOldCache = () => {
         }
         catch (err) {
             console.log(`${key} does not have timestamp`)
+            console.log(`${queryCache[key]}`)
         }
     }
     removeList.forEach(key => {
