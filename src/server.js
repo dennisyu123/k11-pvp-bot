@@ -68,7 +68,7 @@ client.on('message',  async (msg) => {
         clearInterval(intervalTask)
         intervalTask = setInterval(async () => { 
             printSystemMessage()
-        }, 3600 * 1000)
+        }, 1200 * 1000)
         printSystemMessage()
     }
 
@@ -199,6 +199,7 @@ client.on('message',  async (msg) => {
         //not found in local memory, try to get it from db
         if(queryCache[hash] == undefined) {
             let atkcol = await firestore.database.get(`atkId`, hash)
+            console.log(JSON.stringify(atkcol))
             queryCache[hash] = atkcol.data()
         }
 
